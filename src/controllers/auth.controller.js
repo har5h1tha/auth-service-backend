@@ -1,5 +1,6 @@
 import userModel from '../models/user.model.js'
 import crypto from 'crypto'
+import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import config from '../config/config.js'
 import sessionModel from '../models/session.model.js'
@@ -22,8 +23,7 @@ export async function register(req,res) {
         })
     }
     
-    const hashedPswd= crypto.createHash('sha256').update(password).digest("hex")
-
+    const hashedPswd= await bcrypt.hash(password,10)
     const user = await userModel.create({
         username,
         email,
@@ -90,9 +90,11 @@ export async function login(req,res) {
         })
     }
 
-    const hashedPswd=crypto.createHash("sha256").update(password).digest("hex")
-    const isPasswordValid = hashedPswd===user.password
-
+    const isPasswordValid = await bcrypt.compare(
+        password,
+        user.password
+    )
+    
     if(!isPasswordValid){
         return res.status(401).json({
             message:"invalid email or password"
