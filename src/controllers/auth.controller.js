@@ -99,7 +99,7 @@ export async function login(req,res) {
         })
     }
     
-        const refreshtoken = jwt.sign({
+    const refreshtoken = jwt.sign({
         id:user._id
     },config.JWT_SECRET,{
         expiresIn:'7d'
@@ -208,7 +208,7 @@ export async function refreshToken(req,res){
         expiresIn:"15m"
     })
 
-    const newRefreshTokenHash = crypto.createHash("sha256").update(newrefreshToken).digest("hex")
+    const newRefreshTokenHash = crypto.createHash("sha256").update(newRefreshToken).digest("hex")
     session.refreshTokenHash=newRefreshTokenHash;
     await session.save();
 
