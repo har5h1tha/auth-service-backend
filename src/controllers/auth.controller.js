@@ -4,8 +4,9 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import config from '../config/config.js'
 import sessionModel from '../models/session.model.js'
-import { ref } from 'process';
-import strict from 'assert/strict';
+import {sendEmail} from '../services/email.service.js'
+import {generateOtp,getOtpHtml} from "../utils/util.js"
+import otpModel from "../models/otp.model.js"
 
 export async function register(req,res) {
     const{username,email,password}=req.body;
@@ -27,50 +28,29 @@ export async function register(req,res) {
     const user = await userModel.create({
         username,
         email,
-        password:hashedPswd
+        password:hashedPswd,
     })
 
+    const otp = generateOtp();
+    const otpHtml = getOtpHtml(otp);
 
-    const refreshtoken = jwt.sign({
-        id:user._id
-    },config.JWT_SECRET,{
-        expiresIn:'7d'
+    const otpHash= crypto.createHash('sha256').update(otp).digest("hex");
+    await otpModel.create({
+        email,
+        user:user._id,
+        otpHash
     })
 
-    const refreshTokenHash = crypto.createHash('sha256').update(refreshtoken).digest("hex") ;
-
-    const session = await sessionModel.create({
-        user:user,
-        refreshTokenHash,
-        ip:req.ip,
-        userAgent: req.headers["user-agent"]
-
-    })
-
-    const accesstoken=jwt.sign({
-        id:user._id,
-        sessionId : session._id
-    },config.JWT_SECRET,{
-        expiresIn:'15m'
-    })
-
-
-    res.cookie("refreshToken",refreshtoken,{
-        httpOnly:true,
-        secure:true,
-        sameSite:"strict",        
-        maxAge: 7*24*60*60*1000
-
-    })
+    await sendEmail(email,"OTP verification",`Your OTP for ANTHRIX is ${otp}`,otpHtml) 
 
 
     res.status(201).json({
         message:"registered successfully", 
         user:{
             username : user.username,
-            email:user.email
-        },
-        accesstoken
+            email:user.email,
+            verified: user.verified
+        }
     })
     
 
@@ -87,6 +67,12 @@ export async function login(req,res) {
     if(!user){
         return res.status(401).json({
             message:"invalid email or password"
+        })
+    }
+
+    if(!user.verified){
+         return res.status(401).json({
+            message:"Email not verified"
         })
     }
 
@@ -292,4 +278,38 @@ export async function logOutAll(req,res) {
     })
 
     
+}
+
+export async function verifyEmail(req,res){
+    const {otp,email}=req.body;
+
+    const otpHash= crypto.createHash('sha256').update(otp).digest("hex");
+
+    const otpDoc = await otpModel.findOne({
+        email,
+        otpHash
+    })
+    
+    if(!otpDoc){
+         return res.status(400).json({
+            message:"invalid OTP"
+        })
+    }
+
+    const user = await userModel.findByIdAndUpdate(otpDoc.user,{
+        verified:true
+    })
+
+    await otpModel.deleteMany({
+        user: otpDoc.user
+    })
+
+    return res.status(200).json({
+        message:"Email verified successfully",
+        user:{
+            username: user.username,
+            email:user.email,
+            verified:user.verified
+        }
+    })
 }
