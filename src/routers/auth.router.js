@@ -21,4 +21,7 @@ authRouter.get("/log-out",authController.logOut)
 /*GET /api/user/get-me */
 authRouter.get("/log-out-all",authController.logOutAll)
 
+/*GET /api/user/verify-email */
+authRouter.get("/verify-email",authController.verifyEmail)
+
 export default authRouter;
